@@ -15,12 +15,15 @@ def init_db():
         limit_daily_gb INTEGER DEFAULT 30,
         client_type TEXT DEFAULT "Hotspot",
         status TEXT DEFAULT "active",
+        alerted_today INTEGER DEFAULT 0,
         last_update TEXT DEFAULT ""
     )''')
     
-    # Vérification colonne client_type
+    # Vérification colonne alerted_today
     c.execute("PRAGMA table_info(clients)")
     cols = [col[1] for col in c.fetchall()]
+    if "alerted_today" not in cols:
+        c.execute("ALTER TABLE clients ADD COLUMN alerted_today INTEGER DEFAULT 0")
     if "client_type" not in cols:
         c.execute("ALTER TABLE clients ADD COLUMN client_type TEXT DEFAULT 'Hotspot'")
         
@@ -28,28 +31,52 @@ def init_db():
     conn.close()
 
 def update_client_usage(username, daily_bytes, client_type="Hotspot"):
+    """Met à jour les données et vérifie si une alerte doit être envoyée"""
     if not username:
-        return
+        return False, 0, 30, "Hotspot"
+        
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
-    c.execute("SELECT daily_bytes, monthly_bytes FROM clients WHERE username=?", (username,))
+    c.execute("SELECT daily_bytes, monthly_bytes, limit_daily_gb, alerted_today, client_type FROM clients WHERE username=?", (username,))
     row = c.fetchone()
     today_str = datetime.now().strftime("%Y-%m-%d")
     daily_bytes = int(daily_bytes or 0)
     
+    should_alert = False
+    limit_gb = 30
+    ctype = client_type
+    
     if row:
         old_daily = int(row[0] or 0)
         old_monthly = int(row[1] or 0)
+        limit_gb = int(row[2] or 30)
+        alerted = int(row[3] or 0)
+        ctype = row[4] or client_type
+        
         diff = daily_bytes - old_daily
         new_monthly = old_monthly + diff if diff > 0 else old_monthly
-        c.execute("UPDATE clients SET daily_bytes=?, monthly_bytes=?, client_type=?, last_update=datetime('now', 'localtime') WHERE username=?",
-                  (daily_bytes, new_monthly, client_type, username))
+        
+        # Vérification dépassement (ex: > 30 Go) et pas encore alerté aujourd'hui
+        limit_bytes = limit_gb * 1073741824
+        if daily_bytes >= limit_bytes and alerted == 0:
+            should_alert = True
+            alerted = 1
+            
+        c.execute("""UPDATE clients 
+                     SET daily_bytes=?, monthly_bytes=?, client_type=?, alerted_today=?, last_update=datetime('now', 'localtime') 
+                     WHERE username=?""",
+                  (daily_bytes, new_monthly, ctype, alerted, username))
     else:
-        c.execute("""INSERT INTO clients (username, daily_bytes, monthly_bytes, date_debut, date_fin, limit_daily_gb, client_type, status, last_update) 
-                     VALUES (?, ?, ?, ?, '', 30, ?, 'active', datetime('now', 'localtime'))""",
-                  (username, daily_bytes, daily_bytes, today_str, client_type))
+        limit_bytes = 30 * 1073741824
+        alerted = 1 if daily_bytes >= limit_bytes else 0
+        should_alert = bool(alerted)
+        c.execute("""INSERT INTO clients (username, daily_bytes, monthly_bytes, date_debut, date_fin, limit_daily_gb, client_type, status, alerted_today, last_update) 
+                     VALUES (?, ?, ?, ?, '', 30, ?, 'active', ?, datetime('now', 'localtime'))""",
+                  (username, daily_bytes, daily_bytes, today_str, client_type, alerted))
+                  
     conn.commit()
     conn.close()
+    return should_alert, daily_bytes, limit_gb, ctype
 
 def edit_client_dates(username, date_debut, date_fin, limit_daily_gb, client_type, status):
     conn = sqlite3.connect(DB_PATH)
@@ -123,6 +150,7 @@ def get_all_clients():
 def reset_daily():
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
-    c.execute("UPDATE clients SET daily_bytes=0")
+    # Réinitialise les Go du jour ET remet à 0 le compteur d'alerte
+    c.execute("UPDATE clients SET daily_bytes=0, alerted_today=0")
     conn.commit()
     conn.close()
