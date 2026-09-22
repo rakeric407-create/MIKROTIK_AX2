@@ -3,7 +3,7 @@ import io
 import csv
 import urllib.parse
 import requests
-from datetime import datetime
+from datetime import datetime, timedelta
 from flask import Flask, request, jsonify, render_template_string, redirect, Response
 from database import init_db, update_client_usage, edit_client_dates, add_days_to_client, get_client, get_all_clients, reset_daily
 
@@ -14,6 +14,7 @@ ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "382817100")
 API_SECRET = os.environ.get("API_SECRET", "cle_secrete_12345")
 BOT_TOKEN = os.environ.get("BOT_TOKEN", "8688609760:AAGu72P6OKNAxkXxUORGZHyfUj3PpHe-Mec")
 BOT_USERNAME = os.environ.get("BOT_USERNAME", "MICTOTECK_301BOT")
+ADMIN_CHAT_ID = os.environ.get("ADMIN_CHAT_ID", "")  # Votre Chat ID Telegram
 WHATSAPP_PHONE = "261382817100"
 
 def calculate_days_left(date_fin_str):
@@ -32,7 +33,31 @@ def calculate_days_left(date_fin_str):
     except:
         return date_fin_str
 
-# --- DASHBOARD ADMIN PRO AVEC POPUPS 100% FONCTIONNELLES ---
+def send_admin_alert(username, bytes_used, limit_gb, client_type):
+    """Envoie l'alerte à l'administrateur sur Telegram"""
+    if not ADMIN_CHAT_ID:
+        return
+    conso_go = round(bytes_used / 1073741824, 2)
+    now_time = datetime.now().strftime("%H:%M")
+    icon = "🌐 PPPoE" if client_type == "PPPoE" else "📶 Hotspot"
+    
+    alert_msg = (
+        f"🚨 <b>ALERTE QUOTA DÉPASSÉ !</b>\n"
+        f"━━━━━━━━━━━━━━━━━━━━\n"
+        f"👤 <b>Client :</b> <code>{username}</code>\n"
+        f"📡 <b>Type :</b> {icon}\n"
+        f"📊 <b>Consommé :</b> <b>{conso_go} Go</b> / {limit_gb} Go\n"
+        f"⏰ <b>Heure :</b> {now_time}\n"
+        f"━━━━━━━━━━━━━━━━━━━━\n"
+        f"⚠️ <i>Ce client a dépassé sa limite journalière.</i>"
+    )
+    requests.post(f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage", json={
+        "chat_id": ADMIN_CHAT_ID,
+        "text": alert_msg,
+        "parse_mode": "HTML"
+    })
+
+# --- DASHBOARD ADMIN PRO ---
 DASHBOARD_HTML = """
 <!DOCTYPE html>
 <html lang="fr">
@@ -42,17 +67,14 @@ DASHBOARD_HTML = """
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
-        body { background: #0b0f19; color: #f1f5f9; font-family: system-ui, -apple-system, sans-serif; padding: 20px; }
+        body { background: #0b0f19; color: #f1f5f9; font-family: system-ui, sans-serif; padding: 20px; }
         .card-stat { background: #131c31; border: 1px solid #1e293b; border-radius: 14px; padding: 18px; }
-        .stat-val { font-size: 2rem; font-weight: 800; color: #38bdf8; }
+        .stat-val { font-size: 2rem; font-weight: 800; }
         .table-dark { background: #131c31; border: 1px solid #1e293b; border-radius: 12px; }
         .search-box { background: #131c31; color: white; border: 1px solid #38bdf8; padding: 12px 18px; border-radius: 10px; width: 100%; font-size: 15px; }
         .search-box:focus { outline: none; border-color: #00ff88; }
-        .badge-hotspot { background: #0284c7; color: white; }
-        .badge-pppoe { background: #7c3aed; color: white; }
-        .modal-content { background: #131c31; color: white; border: 1px solid #334155; border-radius: 16px; }
-        .form-control, .form-select { background: #0b0f19; color: white; border: 1px solid #334155; }
-        .form-control:focus { background: #0b0f19; color: white; }
+        .badge-hotspot { background: #0284c7; color: white; padding: 5px 10px; border-radius: 6px; }
+        .badge-pppoe { background: #7c3aed; color: white; padding: 5px 10px; border-radius: 6px; }
         .btn-filter { background: #1e293b; color: #94a3b8; border: 1px solid #334155; border-radius: 8px; }
         .btn-filter.active { background: #38bdf8; color: black; font-weight: bold; }
     </style>
@@ -63,7 +85,7 @@ DASHBOARD_HTML = """
         <div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-2">
             <div>
                 <h2 class="text-info fw-bold m-0"><i class="fa-solid fa-tower-broadcast"></i> ISP Hotspot & PPPoE Manager</h2>
-                <small class="text-secondary">MikroTik hAP ax2 Control Center</small>
+                <small class="text-secondary">Alertes Telegram actives sur dépassement 30 Go</small>
             </div>
             <div>
                 <a href="/admin/export-csv?pwd={{ pwd }}" class="btn btn-success"><i class="fa-solid fa-file-excel"></i> Export Excel</a>
@@ -71,13 +93,13 @@ DASHBOARD_HTML = """
             </div>
         </div>
 
-        <!-- 4 Stats Cards -->
+        <!-- Cartes Statistiques -->
         <div class="row g-3 mb-4">
             <div class="col-md-3">
                 <div class="card-stat">
                     <span class="text-secondary"><i class="fa-solid fa-bolt text-warning"></i> Conso Réseau Aujourd'hui</span>
                     <div class="stat-val text-warning">{{ "%.2f"|format(total_bandwidth_today) }} <small style="font-size:16px;">Go</small></div>
-                    <small class="text-secondary">Total Hotspot + PPPoE du jour</small>
+                    <small class="text-secondary">Trafic global de la journée</small>
                 </div>
             </div>
             <div class="col-md-3">
@@ -96,7 +118,7 @@ DASHBOARD_HTML = """
             </div>
             <div class="col-md-3">
                 <div class="card-stat">
-                    <span class="text-secondary"><i class="fa-brands fa-whatsapp text-success"></i> WhatsApp Admin</span>
+                    <span class="text-secondary"><i class="fa-brands fa-whatsapp text-success"></i> WhatsApp Support</span>
                     <div class="h5 mt-2 text-white font-monospace">+261 38 28 171 00</div>
                     <small class="text-success"><i class="fa-brands fa-telegram"></i> @{{ bot_name }}</small>
                 </div>
@@ -106,7 +128,7 @@ DASHBOARD_HTML = """
         <!-- Recherche & Filtres -->
         <div class="row g-2 mb-3">
             <div class="col-md-8">
-                <input type="text" id="searchInput" class="search-box" placeholder="🔎 Chercher un client par son nom ou son type..." onkeyup="filterTable()">
+                <input type="text" id="searchInput" class="search-box" placeholder="🔎 Tapez un nom ou type (Hotspot/PPPoE) pour chercher..." onkeyup="filterTable()">
             </div>
             <div class="col-md-4 d-flex gap-1">
                 <button class="btn btn-filter active flex-fill" onclick="setFilter('all')">Tous ({{ clients|length }})</button>
@@ -124,8 +146,8 @@ DASHBOARD_HTML = """
                         <th>Identifiant</th>
                         <th>Aujourd'hui</th>
                         <th>Total Mois</th>
-                        <th>Date Début</th>
-                        <th>Date Fin</th>
+                        <th>Début</th>
+                        <th>Fin</th>
                         <th>Validité</th>
                         <th>Statut</th>
                         <th class="text-end">Actions</th>
@@ -142,7 +164,14 @@ DASHBOARD_HTML = """
                             {% endif %}
                         </td>
                         <td class="client-name fw-bold text-info">{{ c.username }}</td>
-                        <td>{{ "%.2f"|format(c.daily_bytes / 1073741824) }} Go / {{ c.limit_daily_gb }} Go</td>
+                        <td>
+                            {% set daily_go = c.daily_bytes / 1073741824 %}
+                            {% if daily_go >= c.limit_daily_gb %}
+                                <span class="text-danger fw-bold"><i class="fa-solid fa-triangle-exclamation"></i> {{ "%.2f"|format(daily_go) }} Go / {{ c.limit_daily_gb }} Go</span>
+                            {% else %}
+                                <span>{{ "%.2f"|format(daily_go) }} Go / {{ c.limit_daily_gb }} Go</span>
+                            {% endif %}
+                        </td>
                         <td class="text-success fw-bold font-monospace">{{ "%.2f"|format(c.monthly_bytes / 1073741824) }} Go</td>
                         <td>{{ c.date_debut or '---' }}</td>
                         <td>{{ c.date_fin or '---' }}</td>
@@ -158,9 +187,9 @@ DASHBOARD_HTML = """
                             <a href="/admin/quick-renew?username={{ c.username }}&pwd={{ pwd }}" class="btn btn-sm btn-outline-success me-1" title="+30 Jours">
                                 ➕ +30j
                             </a>
-                            <button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#editModal{{ loop.index }}">
+                            <a href="/admin/edit?username={{ c.username }}&pwd={{ pwd }}" class="btn btn-sm btn-primary">
                                 ✏️ Modifier
-                            </button>
+                            </a>
                         </td>
                     </tr>
                     {% endfor %}
@@ -169,57 +198,7 @@ DASHBOARD_HTML = """
         </div>
     </div>
 
-    <!-- MODALS HORS DU TABLEAU POUR FONCTIONNER A 100% -->
-    {% for c in clients %}
-    <div class="modal fade" id="editModal{{ loop.index }}" tabindex="-1" aria-hidden="true">
-        <div class="modal-dialog modal-dialog-centered">
-            <div class="modal-content">
-                <form action="/admin/edit-client" method="POST">
-                    <input type="hidden" name="pwd" value="{{ pwd }}">
-                    <input type="hidden" name="username" value="{{ c.username }}">
-                    <div class="modal-header">
-                        <h5 class="modal-title">Gérer le compte : <span class="text-info">{{ c.username }}</span></h5>
-                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-                    </div>
-                    <div class="modal-body">
-                        <div class="mb-3">
-                            <label class="form-label">Type de Connexion :</label>
-                            <select name="client_type" class="form-select">
-                                <option value="Hotspot" {% if c.client_type == 'Hotspot' %}selected{% endif %}>📶 Hotspot (WiFi Zone)</option>
-                                <option value="PPPoE" {% if c.client_type == 'PPPoE' %}selected{% endif %}>🌐 PPPoE (Routeur / Foyer)</option>
-                            </select>
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label">Date Début d'Abonnement :</label>
-                            <input type="date" name="date_debut" class="form-control" value="{{ c.date_debut }}">
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label">Date Fin d'Abonnement :</label>
-                            <input type="date" name="date_fin" class="form-control" value="{{ c.date_fin }}">
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label">Quota Quotidien (Go) :</label>
-                            <input type="number" name="limit_daily_gb" class="form-control" value="{{ c.limit_daily_gb }}">
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label">Statut :</label>
-                            <select name="status" class="form-select">
-                                <option value="active" {% if c.status == 'active' %}selected{% endif %}>🟢 Actif</option>
-                                <option value="blocked" {% if c.status == 'blocked' %}selected{% endif %}>🔴 Suspendu</option>
-                            </select>
-                        </div>
-                    </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
-                        <button type="submit" class="btn btn-success">Enregistrer les Modifications</button>
-                    </div>
-                </form>
-            </div>
-        </div>
-    </div>
-    {% endfor %}
-
-    <!-- Scripts Filtre & Recherche -->
+    <!-- Scripts Recherche & Filtres -->
     <script>
         let currentTypeFilter = 'all';
 
@@ -249,7 +228,93 @@ DASHBOARD_HTML = """
             });
         }
     </script>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
+"""
+
+# --- PAGE DE MODIFICATION ---
+EDIT_PAGE_HTML = """
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <title>Modifier {{ client.username }}</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { background: #0b0f19; color: #f1f5f9; font-family: system-ui, sans-serif; display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 20px; }
+        .edit-card { background: #131c31; border: 1px solid #1e293b; border-radius: 16px; padding: 30px; width: 100%; max-width: 500px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+        .form-control, .form-select { background: #0b0f19; color: white; border: 1px solid #334155; padding: 10px; border-radius: 8px; }
+        .form-control:focus, .form-select:focus { background: #0b0f19; color: white; border-color: #38bdf8; box-shadow: 0 0 10px rgba(56,189,248,0.3); }
+        .btn-quick { background: #1e293b; color: #38bdf8; border: 1px solid #334155; font-size: 13px; padding: 4px 10px; border-radius: 6px; cursor: pointer; text-decoration: none; display: inline-block; margin-top: 5px; }
+    </style>
+</head>
+<body>
+    <div class="edit-card">
+        <h3 class="text-info fw-bold mb-1">✏️ Modifier Client</h3>
+        <p class="text-secondary mb-4">Identifiant : <b class="text-warning font-monospace" style="font-size: 18px;">{{ client.username }}</b></p>
+        
+        <form action="/admin/edit-client" method="POST">
+            <input type="hidden" name="pwd" value="{{ pwd }}">
+            <input type="hidden" name="username" value="{{ client.username }}">
+
+            <div class="mb-3">
+                <label class="form-label text-secondary">Type de Connexion :</label>
+                <select name="client_type" class="form-select">
+                    <option value="Hotspot" {% if client.client_type == 'Hotspot' %}selected{% endif %}>📶 Hotspot (WiFi Zone)</option>
+                    <option value="PPPoE" {% if client.client_type == 'PPPoE' %}selected{% endif %}>🌐 PPPoE (Routeur / Foyer)</option>
+                </select>
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label text-secondary">Date Début Abonnement :</label>
+                <input type="date" name="date_debut" class="form-control" value="{{ client.date_debut }}">
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label text-secondary">Date Fin Abonnement :</label>
+                <input type="date" id="dateFinInput" name="date_fin" class="form-control" value="{{ client.date_fin }}">
+                <div class="mt-2">
+                    <span class="text-secondary" style="font-size: 12px;">Raccourcis :</span>
+                    <button type="button" class="btn-quick" onclick="setQuickDate(30)">+30 Jours</button>
+                    <button type="button" class="btn-quick" onclick="setQuickDate(60)">+60 Jours</button>
+                    <button type="button" class="btn-quick" onclick="setQuickDate(90)">+90 Jours</button>
+                </div>
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label text-secondary">Limite Quotidienne (Go) :</label>
+                <input type="number" name="limit_daily_gb" class="form-control" value="{{ client.limit_daily_gb }}">
+            </div>
+
+            <div class="mb-4">
+                <label class="form-label text-secondary">Statut :</label>
+                <select name="status" class="form-select">
+                    <option value="active" {% if client.status == 'active' %}selected{% endif %}>🟢 Actif (Connexion autorisée)</option>
+                    <option value="blocked" {% if client.status == 'blocked' %}selected{% endif %}>🔴 Suspendu / Bloqué</option>
+                </select>
+            </div>
+
+            <div class="d-flex gap-2">
+                <a href="/admin?pwd={{ pwd }}" class="btn btn-secondary flex-fill">Annuler</a>
+                <button type="submit" class="btn btn-success flex-fill fw-bold">💾 Enregistrer</button>
+            </div>
+        </form>
+    </div>
+
+    <script>
+        function setQuickDate(days) {
+            let d = new Date();
+            d.setDate(d.getDate() + days);
+            let month = '' + (d.getMonth() + 1);
+            let day = '' + d.getDate();
+            let year = d.getFullYear();
+
+            if (month.length < 2) month = '0' + month;
+            if (day.length < 2) day = '0' + day;
+
+            document.getElementById('dateFinInput').value = [year, month, day].join('-');
+        }
+    </script>
 </body>
 </html>
 """
@@ -272,14 +337,16 @@ def admin():
                                   total_bandwidth_today=total_today, total_bandwidth_month=total_month,
                                   calc_days=calculate_days_left, bot_name=BOT_USERNAME)
 
-@app.route("/admin/quick-renew")
-def quick_renew():
+@app.route("/admin/edit")
+def edit_page():
     pwd = request.args.get("pwd")
     if pwd != ADMIN_PASSWORD and pwd != "mon_mot_de_passe_secret":
-        return "Accès refusé", 403
+        return "<h2>🔒 Mot de passe incorrect</h2>", 403
     uname = request.args.get("username")
-    add_days_to_client(uname, 30)
-    return redirect(f"/admin?pwd={pwd}")
+    client = get_client(uname)
+    if not client:
+        return "<h3>Client introuvable</h3>", 404
+    return render_template_string(EDIT_PAGE_HTML, client=client, pwd=pwd)
 
 @app.route("/admin/edit-client", methods=["POST"])
 def edit_client():
@@ -293,6 +360,15 @@ def edit_client():
     ctype = request.form.get("client_type") or "Hotspot"
     st = request.form.get("status") or "active"
     edit_client_dates(uname, d_deb, d_fin, lim, ctype, st)
+    return redirect(f"/admin?pwd={pwd}")
+
+@app.route("/admin/quick-renew")
+def quick_renew():
+    pwd = request.args.get("pwd")
+    if pwd != ADMIN_PASSWORD and pwd != "mon_mot_de_passe_secret":
+        return "Accès refusé", 403
+    uname = request.args.get("username")
+    add_days_to_client(uname, 30)
     return redirect(f"/admin?pwd={pwd}")
 
 @app.route("/admin/export-csv")
@@ -319,7 +395,7 @@ def export_csv():
         headers={"Content-Disposition": f"attachment;filename=rapport_isp_{datetime.now().strftime('%Y_%m_%d')}.csv"}
     )
 
-# --- PAGE CLIENT STATUT ---
+# --- PAGE CLIENT ---
 CLIENT_HTML = """
 <!DOCTYPE html>
 <html lang="fr">
@@ -328,7 +404,7 @@ CLIENT_HTML = """
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
-        body { font-family: system-ui, -apple-system, sans-serif; background: #070b14; color: white; text-align: center; padding: 25px 15px; margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center; }
+        body { font-family: system-ui, sans-serif; background: #070b14; color: white; text-align: center; padding: 25px 15px; margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center; }
         .box { background: #0f172a; width: 100%; max-width: 420px; padding: 30px 20px; border-radius: 20px; border: 1px solid #1e293b; box-shadow: 0 10px 30px rgba(0,0,0,0.6); }
         .val { font-size: 32px; font-weight: 800; color: #38bdf8; margin: 6px 0; }
         .val-month { font-size: 32px; font-weight: 800; color: #4ade80; margin: 6px 0; }
@@ -432,6 +508,8 @@ def telegram_webhook():
                     ]
                 }
                 send_telegram_msg(chat_id, welcome_text, keyboard)
+        elif text.startswith("/myid"):
+            send_telegram_msg(chat_id, f"🆔 <b>Votre Chat ID Telegram est :</b> <code>{chat_id}</code>")
         else:
             reply_client_stats(chat_id, text)
 
@@ -464,14 +542,22 @@ def set_webhook():
     res = requests.get(f"https://api.telegram.org/bot{BOT_TOKEN}/setWebhook?url={wh_url}").json()
     return f"<h3>Résultat Webhook :</h3><pre>{res}</pre><br><a href='/admin?pwd={request.args.get('pwd')}'>Retour au Dashboard</a>"
 
-# --- API MIKROTIK ---
+# --- API MIKROTIK AVEC GESTION DES ALERTES ---
 @app.route("/api/update", methods=["POST"])
 def api_update():
     data = request.json or {}
     if data.get("secret") != API_SECRET:
         return jsonify({"error": "unauthorized"}), 403
     for u in data.get("users", []):
-        update_client_usage(u["username"], u["bytes"], u.get("type", "Hotspot"))
+        uname = u["username"]
+        bytes_used = u["bytes"]
+        ctype = u.get("type", "Hotspot")
+        
+        # Mise à jour et vérification d'alerte
+        should_alert, total_b, limit_gb, client_type = update_client_usage(uname, bytes_used, ctype)
+        if should_alert:
+            send_admin_alert(uname, total_b, limit_gb, client_type)
+            
     return jsonify({"status": "ok"})
 
 @app.route("/api/reset-daily", methods=["POST"])
