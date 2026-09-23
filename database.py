@@ -12,7 +12,7 @@ def init_db():
         monthly_bytes INTEGER DEFAULT 0,
         date_debut TEXT DEFAULT "",
         date_fin TEXT DEFAULT "",
-        limit_daily_gb INTEGER DEFAULT 30,
+        limit_daily_gb INTEGER DEFAULT 10,
         client_type TEXT DEFAULT "Hotspot",
         status TEXT DEFAULT "active",
         alerted_today INTEGER DEFAULT 0,
@@ -24,12 +24,14 @@ def init_db():
         c.execute("ALTER TABLE clients ADD COLUMN alerted_today INTEGER DEFAULT 0")
     if "client_type" not in cols:
         c.execute("ALTER TABLE clients ADD COLUMN client_type TEXT DEFAULT 'Hotspot'")
+    if "limit_daily_gb" not in cols:
+        c.execute("ALTER TABLE clients ADD COLUMN limit_daily_gb INTEGER DEFAULT 10")
     conn.commit()
     conn.close()
 
 def update_client_usage(username, daily_bytes, client_type="Hotspot"):
     if not username:
-        return False, 0, 30, "Hotspot"
+        return False, 0, 10, "Hotspot"
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     c.execute("SELECT daily_bytes, monthly_bytes, limit_daily_gb, alerted_today, client_type FROM clients WHERE username=?", (username,))
@@ -37,13 +39,13 @@ def update_client_usage(username, daily_bytes, client_type="Hotspot"):
     today_str = datetime.now().strftime("%Y-%m-%d")
     daily_bytes = int(daily_bytes or 0)
     should_alert = False
-    limit_gb = 30
+    limit_gb = 10
     ctype = client_type
 
     if row:
         old_daily = int(row[0] or 0)
         old_monthly = int(row[1] or 0)
-        limit_gb = int(row[2] or 30)
+        limit_gb = int(row[2] or 10)
         alerted = int(row[3] or 0)
         ctype = row[4] or client_type
         diff = daily_bytes - old_daily
@@ -55,10 +57,10 @@ def update_client_usage(username, daily_bytes, client_type="Hotspot"):
         c.execute("UPDATE clients SET daily_bytes=?, monthly_bytes=?, client_type=?, alerted_today=?, last_update=datetime('now','localtime') WHERE username=?",
                   (daily_bytes, new_monthly, ctype, alerted, username))
     else:
-        limit_bytes = 30 * 1073741824
+        limit_bytes = 10 * 1073741824
         alerted = 1 if daily_bytes >= limit_bytes else 0
         should_alert = bool(alerted)
-        c.execute("INSERT INTO clients (username, daily_bytes, monthly_bytes, date_debut, date_fin, limit_daily_gb, client_type, status, alerted_today, last_update) VALUES (?,?,?,?,?,30,?,'active',?,datetime('now','localtime'))",
+        c.execute("INSERT INTO clients (username, daily_bytes, monthly_bytes, date_debut, date_fin, limit_daily_gb, client_type, status, alerted_today, last_update) VALUES (?,?,?,?,?,10,?,'active',?,datetime('now','localtime'))",
                   (username, daily_bytes, daily_bytes, today_str, "", client_type, alerted))
     conn.commit()
     conn.close()
@@ -68,7 +70,7 @@ def edit_client_dates(username, date_debut, date_fin, limit_daily_gb, client_typ
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     c.execute("UPDATE clients SET date_debut=?, date_fin=?, limit_daily_gb=?, client_type=?, status=? WHERE username=?",
-              (date_debut or "", date_fin or "", int(limit_daily_gb or 30), client_type or "Hotspot", status or "active", username))
+              (date_debut or "", date_fin or "", int(limit_daily_gb or 10), client_type or "Hotspot", status or "active", username))
     conn.commit()
     conn.close()
 
@@ -99,7 +101,7 @@ def get_client(username):
     conn.close()
     if row:
         return {"username": row[0], "daily_bytes": row[1] or 0, "monthly_bytes": row[2] or 0,
-                "date_debut": row[3] or "", "date_fin": row[4] or "", "limit_daily_gb": row[5] or 30,
+                "date_debut": row[3] or "", "date_fin": row[4] or "", "limit_daily_gb": row[5] or 10,
                 "client_type": row[6] or "Hotspot", "status": row[7] or "active", "last_update": row[8] or ""}
     return None
 
@@ -110,7 +112,7 @@ def get_all_clients():
     rows = c.fetchall()
     conn.close()
     return [{"username": r[0], "daily_bytes": r[1] or 0, "monthly_bytes": r[2] or 0,
-             "date_debut": r[3] or "", "date_fin": r[4] or "", "limit_daily_gb": r[5] or 30,
+             "date_debut": r[3] or "", "date_fin": r[4] or "", "limit_daily_gb": r[5] or 10,
              "client_type": r[6] or "Hotspot", "status": r[7] or "active", "last_update": r[8] or ""} for r in rows]
 
 def reset_daily():
