@@ -19,16 +19,16 @@ WHATSAPP_PHONE = "261382817100"
 
 def calc_days(date_fin_str):
     if not date_fin_str:
-        return "Non defini"
+        return "Non défini"
     try:
         fin = datetime.strptime(date_fin_str, "%Y-%m-%d").date()
         diff = (fin - datetime.now().date()).days
         if diff > 0:
-            return f"Reste {diff} j"
+            return f"🟢 Reste {diff} j"
         elif diff == 0:
-            return "Expire ce soir"
+            return "🟡 Expire ce soir"
         else:
-            return f"Expir ({abs(diff)} j)"
+            return f"🔴 Expiré ({abs(diff)} j)"
     except:
         return date_fin_str
 
@@ -36,25 +36,28 @@ def send_tg(chat_id, text, reply_markup=None):
     payload = {"chat_id": chat_id, "text": text, "parse_mode": "HTML"}
     if reply_markup:
         payload["reply_markup"] = reply_markup
-    requests.post(f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage", json=payload)
+    try:
+        requests.post(f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage", json=payload, timeout=5)
+    except:
+        pass
 
 def send_admin_alert(username, bytes_used, limit_gb, client_type):
     if not ADMIN_CHAT_ID:
         return
     conso = round(bytes_used / 1073741824, 2)
-    icon = "PPPoE" if client_type == "PPPoE" else "Hotspot"
-    msg = (f"🚨 <b>ALERTE QUOTA DEPASSE !</b>\n"
+    icon = "🌐 PPPoE" if client_type == "PPPoE" else "📶 Hotspot"
+    msg = (f"🚨 <b>ALERTE QUOTA ATTEINT !</b>\n"
            f"━━━━━━━━━━━━━━━━━━━━\n"
            f"👤 <b>Client :</b> <code>{username}</code>\n"
            f"📡 <b>Type :</b> {icon}\n"
-           f"📊 <b>Consomme :</b> <b>{conso} Go</b> / {limit_gb} Go\n"
+           f"📊 <b>Consommation :</b> <b>{conso} Go</b> / {limit_gb} Go\n"
            f"⏰ <b>Heure :</b> {datetime.now().strftime('%H:%M')}\n"
            f"━━━━━━━━━━━━━━━━━━━━\n"
-           f"⚠️ <i>Limite journaliere atteinte.</i>")
+           f"⚠️ <i>Limite journalière atteinte. Débit FUP appliqué.</i>")
     send_tg(ADMIN_CHAT_ID, msg)
 
 # ============================================================
-# DASHBOARD ADMIN
+# DASHBOARD ADMIN (ROUGE & NOIR ANIMÉ)
 # ============================================================
 DASHBOARD_HTML = """
 <!DOCTYPE html>
@@ -62,82 +65,91 @@ DASHBOARD_HTML = """
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>MIKROTECK 301 - Admin</title>
+<title>MIKROTECK 301 - ISP Control</title>
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
 <style>
-body{background:#0b0f19;color:#f1f5f9;font-family:system-ui,sans-serif;padding:20px}
-.cs{background:#131c31;border:1px solid #1e293b;border-radius:14px;padding:18px}
-.sv{font-size:2rem;font-weight:800}
-.td{background:#131c31;border:1px solid #1e293b;border-radius:12px}
-.sb{background:#131c31;color:white;border:1px solid #38bdf8;padding:12px 18px;border-radius:10px;width:100%;font-size:15px}
-.sb:focus{outline:none;border-color:#00ff88;box-shadow:0 0 10px rgba(0,255,136,0.3)}
-.bh{background:#0284c7;color:white;padding:5px 10px;border-radius:6px}
-.bp{background:#7c3aed;color:white;padding:5px 10px;border-radius:6px}
-.bf{background:#1e293b;color:#94a3b8;border:1px solid #334155;border-radius:8px}
-.bf.active{background:#38bdf8;color:black;font-weight:bold}
-.ar{background:rgba(239,68,68,0.15)!important;border-left:4px solid #ef4444}
-.ab{background:linear-gradient(90deg,#b91c1c,#dc2626);color:white;padding:14px 20px;border-radius:12px;margin-bottom:20px;font-weight:bold;box-shadow:0 4px 15px rgba(220,38,38,0.4)}
+:root{--red:#ff003c;--dark-red:#990024;--bg:#050508;--card:#0d0d14;--card-border:rgba(255,0,60,0.2)}
+body{background:radial-gradient(circle at 10% 10%,#1a0007,var(--bg) 60%);color:#f1f5f9;font-family:'Segoe UI',system-ui,sans-serif;padding:20px;min-height:100vh}
+.cs{background:var(--card);border:1px solid var(--card-border);border-radius:16px;padding:20px;box-shadow:0 8px 30px rgba(0,0,0,0.8);position:relative;overflow:hidden}
+.cs::before{content:'';position:absolute;top:0;left:0;width:100%;height:3px;background:linear-gradient(90deg,transparent,var(--red),transparent);animation:scan 3s infinite linear}
+@keyframes scan{0%{transform:translateX(-100%)}100%{transform:translateX(100%)}}
+.sv{font-size:2.2rem;font-weight:900;letter-spacing:1px;color:#fff}
+.sv span{color:var(--red)}
+.td{background:var(--card);border:1px solid var(--card-border);border-radius:14px;overflow:hidden}
+.sb{background:#08080f;color:white;border:1px solid var(--card-border);padding:13px 20px;border-radius:12px;width:100%;font-size:15px;transition:.3s}
+.sb:focus{outline:none;border-color:var(--red);box-shadow:0 0 15px rgba(255,0,60,0.4)}
+.bh{background:linear-gradient(135deg,#e11d48,#be123c);color:white;padding:5px 12px;border-radius:6px;font-size:12px;font-weight:700}
+.bp{background:linear-gradient(135deg,#7c3aed,#4c1d95);color:white;padding:5px 12px;border-radius:6px;font-size:12px;font-weight:700}
+.bf{background:#12121c;color:#94a3b8;border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:8px 14px;transition:.2s}
+.bf.active{background:var(--red);color:#fff;font-weight:bold;border-color:var(--red);box-shadow:0 0 12px rgba(255,0,60,0.5)}
+.ar{background:rgba(255,0,60,0.12)!important;border-left:4px solid var(--red)}
+.ab{background:linear-gradient(90deg,#88001e,#ff003c);color:white;padding:14px 20px;border-radius:12px;margin-bottom:20px;font-weight:bold;box-shadow:0 4px 20px rgba(255,0,60,0.4);animation:pulseAlert 2s infinite}
+@keyframes pulseAlert{0%,100%{opacity:1}50%{opacity:0.85}}
+.btn-red{background:linear-gradient(135deg,#ff003c,#b90029);color:white;font-weight:700;border:none;border-radius:8px;padding:6px 14px;transition:.2s}
+.btn-red:hover{box-shadow:0 0 12px rgba(255,0,60,0.6);color:white}
 </style>
 </head>
 <body>
 <div class="container-fluid">
-<div class="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-2">
+<div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-2">
 <div>
-<h2 class="text-info fw-bold m-0"><i class="fa-solid fa-tower-broadcast"></i> MIKROTECK 301 Admin</h2>
-<small class="text-secondary">Hotspot & PPPoE | 40 000 Ar / 30j | 05h-00h</small>
+<h2 class="fw-bold m-0" style="background:linear-gradient(135deg,#fff,#ff003c);-webkit-background-clip:text;-webkit-text-fill-color:transparent">
+<i class="fa-solid fa-satellite-dish" style="color:var(--red);-webkit-text-fill-color:initial"></i> MIKROTECK 301 CONTROL
+</h2>
+<small class="text-secondary">ISP Starlink Manager | Quota configurable (Defaut: 10 Go/j) | 05h-00h</small>
 </div>
 <div>
-<a href="/admin/export-csv?pwd={{pwd}}" class="btn btn-success"><i class="fa-solid fa-file-excel"></i> Export</a>
-<a href="/set-webhook?pwd={{pwd}}" class="btn btn-outline-info ms-1"><i class="fa-brands fa-telegram"></i> Bot</a>
+<a href="/admin/export-csv?pwd={{pwd}}" class="btn btn-outline-light me-1"><i class="fa-solid fa-file-excel text-success"></i> Export CSV</a>
+<a href="/set-webhook?pwd={{pwd}}" class="btn btn-red"><i class="fa-brands fa-telegram"></i> Synchro Bot</a>
 </div>
 </div>
 
 {% if exceeded_count > 0 %}
 <div class="ab d-flex align-items-center justify-content-between">
-<span><i class="fa-solid fa-triangle-exclamation fa-lg me-2"></i> {{exceeded_count}} client(s) ont depasse 30 Go aujourd'hui !</span>
-<button class="btn btn-sm btn-dark" onclick="setFilter('exceeded')">Voir</button>
+<span><i class="fa-solid fa-triangle-exclamation fa-lg me-2"></i> <b>Attention :</b> {{exceeded_count}} client(s) ont atteint leur quota journalier aujourd'hui !</span>
+<button class="btn btn-sm btn-dark" onclick="sf('exceeded')">Voir les clients</button>
 </div>
 {% endif %}
 
 <div class="row g-3 mb-4">
-<div class="col-md-3"><div class="cs"><span class="text-secondary"><i class="fa-solid fa-bolt text-warning"></i> Conso Aujourd'hui</span><div class="sv text-warning">{{"%.2f"|format(t_today)}} <small style="font-size:16px">Go</small></div></div></div>
-<div class="col-md-3"><div class="cs"><span class="text-secondary"><i class="fa-solid fa-chart-pie text-success"></i> Conso ce Mois</span><div class="sv text-success">{{"%.2f"|format(t_month)}} <small style="font-size:16px">Go</small></div></div></div>
-<div class="col-md-3"><div class="cs"><span class="text-secondary"><i class="fa-solid fa-users text-primary"></i> Clients</span><div class="sv text-info">{{clients|length}}</div><small class="text-secondary">Hotspot {{c_hs}} | PPPoE {{c_pp}}</small></div></div>
-<div class="col-md-3"><div class="cs"><span class="text-secondary"><i class="fa-brands fa-whatsapp text-success"></i> Admin</span><div class="h5 mt-2 text-white font-monospace">+261 38 28 171 00</div><small class="text-success"><i class="fa-brands fa-telegram"></i> @{{bot}}</small></div></div>
+<div class="col-md-3"><div class="cs"><span class="text-secondary text-uppercase fw-bold" style="font-size:11px"><i class="fa-solid fa-bolt text-warning"></i> Conso Réseau Aujourd'hui</span><div class="sv">{{"%.2f"|format(t_today)}} <span>Go</span></div></div></div>
+<div class="col-md-3"><div class="cs"><span class="text-secondary text-uppercase fw-bold" style="font-size:11px"><i class="fa-solid fa-chart-pie" style="color:var(--red)"></i> Conso Totale ce Mois</span><div class="sv">{{"%.2f"|format(t_month)}} <span style="color:#00ff88">Go</span></div></div></div>
+<div class="col-md-3"><div class="cs"><span class="text-secondary text-uppercase fw-bold" style="font-size:11px"><i class="fa-solid fa-users text-info"></i> Clients Connectés</span><div class="sv">{{clients|length}}</div><small class="text-secondary">📶 HS: {{c_hs}} | 🌐 PPP: {{c_pp}}</small></div></div>
+<div class="col-md-3"><div class="cs"><span class="text-secondary text-uppercase fw-bold" style="font-size:11px"><i class="fa-brands fa-whatsapp text-success"></i> Admin / Mvola</span><div class="h5 mt-2 text-white font-monospace">+261 38 28 171 00</div><small style="color:var(--red)"><i class="fa-brands fa-telegram"></i> @{{bot}}</small></div></div>
 </div>
 
 <div class="row g-2 mb-3">
-<div class="col-md-7"><input type="text" id="si" class="sb" placeholder="🔎 Chercher un client..." onkeyup="ft()"></div>
+<div class="col-md-7"><input type="text" id="si" class="sb" placeholder="🔎 Tapez un identifiant client pour filtrer en direct..." onkeyup="ft()"></div>
 <div class="col-md-5 d-flex gap-1">
 <button class="bf active flex-fill" id="ba" onclick="sf('all')">Tous ({{clients|length}})</button>
-<button class="bf flex-fill" id="bhs" onclick="sf('Hotspot')">📶 HS</button>
-<button class="bf flex-fill" id="bpp" onclick="sf('PPPoE')">🌐 PPP</button>
-<button class="bf flex-fill text-danger fw-bold" id="bex" onclick="sf('exceeded')">⚠️ ({{exceeded_count}})</button>
+<button class="bf flex-fill" id="bhs" onclick="sf('Hotspot')">📶 Hotspot</button>
+<button class="bf flex-fill" id="bpp" onclick="sf('PPPoE')">🌐 PPPoE</button>
+<button class="bf flex-fill text-danger fw-bold" id="bex" onclick="sf('exceeded')">⚠️ Quota ({{exceeded_count}})</button>
 </div>
 </div>
 
 <div class="table-responsive">
 <table class="table table-dark table-hover align-middle mb-0 td" id="ct">
-<thead><tr class="table-secondary text-dark">
-<th>Type</th><th>Client</th><th>Aujourd'hui</th><th>Mois</th><th>Debut</th><th>Fin</th><th>Validite</th><th>Statut</th><th class="text-end">Actions</th>
+<thead><tr style="background:#151522;color:#94a3b8">
+<th class="ps-3">Type</th><th>Identifiant</th><th>Aujourd'hui</th><th>Total Mois</th><th>Début</th><th>Fin</th><th>Validité</th><th>Statut</th><th class="text-end pe-3">Actions</th>
 </tr></thead>
 <tbody>
 {% for c in clients %}
 {% set dg = c.daily_bytes / 1073741824 %}
 {% set ex = dg >= c.limit_daily_gb %}
 <tr class="client-row {{'ar' if ex else ''}}" data-type="{{c.client_type}}" data-ex="{{'y' if ex else 'n'}}">
-<td>{% if c.client_type=='PPPoE' %}<span class="bp"><i class="fa-solid fa-network-wired"></i> PPPoE</span>{% else %}<span class="bh"><i class="fa-solid fa-wifi"></i> HS</span>{% endif %}</td>
-<td class="cn fw-bold text-info">{{c.username}} {% if ex %}<span class="badge bg-danger ms-1">FUP</span>{% endif %}</td>
+<td class="ps-3">{% if c.client_type=='PPPoE' %}<span class="bp"><i class="fa-solid fa-network-wired"></i> PPPoE</span>{% else %}<span class="bh"><i class="fa-solid fa-wifi"></i> Hotspot</span>{% endif %}</td>
+<td class="cn fw-bold text-white">{{c.username}} {% if ex %}<span class="badge bg-danger ms-1">FUP</span>{% endif %}</td>
 <td>{% if ex %}<span class="text-danger fw-bold"><i class="fa-solid fa-triangle-exclamation"></i> {{"%.2f"|format(dg)}} / {{c.limit_daily_gb}} Go</span>{% else %}{{"%.2f"|format(dg)}} / {{c.limit_daily_gb}} Go{% endif %}</td>
-<td class="text-success fw-bold font-monospace">{{"%.2f"|format(c.monthly_bytes/1073741824)}} Go</td>
-<td>{{c.date_debut or '---'}}</td>
-<td>{{c.date_fin or '---'}}</td>
-<td><span class="badge bg-dark border p-2">{{cd(c.date_fin)}}</span></td>
-<td>{% if c.status=='active' %}<span class="badge bg-success">Actif</span>{% else %}<span class="badge bg-danger">Suspendu</span>{% endif %}</td>
-<td class="text-end">
-<a href="/admin/quick-renew?username={{c.username}}&pwd={{pwd}}" class="btn btn-sm btn-outline-success me-1">+30j</a>
-<a href="/admin/edit?username={{c.username}}&pwd={{pwd}}" class="btn btn-sm btn-primary">✏️</a>
+<td class="fw-bold font-monospace" style="color:#00ff88">{{"%.2f"|format(c.monthly_bytes/1073741824)}} Go</td>
+<td class="text-secondary">{{c.date_debut or '---'}}</td>
+<td class="text-secondary">{{c.date_fin or '---'}}</td>
+<td><span class="badge bg-dark border border-secondary p-2">{{cd(c.date_fin)}}</span></td>
+<td>{% if c.status=='active' %}<span class="badge bg-success bg-opacity-75">Actif</span>{% else %}<span class="badge bg-danger bg-opacity-75">Suspendu</span>{% endif %}</td>
+<td class="text-end pe-3">
+<a href="/admin/quick-renew?username={{c.username}}&pwd={{pwd}}" class="btn btn-sm btn-outline-success me-1" title="+30 jours">+30j</a>
+<a href="/admin/edit?username={{c.username}}&pwd={{pwd}}" class="btn btn-sm btn-red">✏️ Gérer</a>
 </td>
 </tr>
 {% endfor %}
@@ -164,7 +176,7 @@ r.style.display=ms&&mf?'':'none';});}
 """
 
 # ============================================================
-# PAGE EDITION CLIENT
+# PAGE MODIFICATION CLIENT
 # ============================================================
 EDIT_HTML = """
 <!DOCTYPE html>
@@ -175,31 +187,32 @@ EDIT_HTML = """
 <title>Modifier {{c.username}}</title>
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
 <style>
-body{background:#0b0f19;color:#f1f5f9;font-family:system-ui,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;padding:20px}
-.ec{background:#131c31;border:1px solid #1e293b;border-radius:16px;padding:30px;width:100%;max-width:500px;box-shadow:0 10px 30px rgba(0,0,0,0.5)}
-.fc,.fs{background:#0b0f19;color:white;border:1px solid #334155;padding:10px;border-radius:8px}
-.fc:focus,.fs:focus{background:#0b0f19;color:white;border-color:#38bdf8}
-.bq{background:#1e293b;color:#38bdf8;border:1px solid #334155;font-size:13px;padding:4px 10px;border-radius:6px;cursor:pointer;margin-top:5px}
+body{background:#050508;color:#f1f5f9;font-family:system-ui,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;padding:20px}
+.ec{background:#0d0d14;border:1px solid rgba(255,0,60,0.3);border-radius:20px;padding:30px;width:100%;max-width:500px;box-shadow:0 15px 40px rgba(0,0,0,0.9)}
+.fc,.fs{background:#05050a;color:white;border:1px solid #222;padding:12px;border-radius:10px}
+.fc:focus,.fs:focus{background:#05050a;color:white;border-color:#ff003c;box-shadow:0 0 10px rgba(255,0,60,0.4)}
+.bq{background:#1a1a26;color:#ff003c;border:1px solid rgba(255,0,60,0.3);font-size:13px;padding:6px 12px;border-radius:8px;cursor:pointer;margin-top:5px;font-weight:700}
+.btn-save{background:linear-gradient(135deg,#ff003c,#b90029);color:white;font-weight:800;border:none;padding:12px;border-radius:10px}
 </style>
 </head>
 <body>
 <div class="ec">
-<h3 class="text-info fw-bold mb-1">✏️ Modifier Client</h3>
-<p class="text-secondary mb-4">Compte : <b class="text-warning font-monospace" style="font-size:18px">{{c.username}}</b></p>
+<h3 class="fw-bold mb-1" style="color:#ff003c">✏️ Gérer le Client</h3>
+<p class="text-secondary mb-4">Compte : <b class="text-white font-monospace" style="font-size:18px">{{c.username}}</b></p>
 <form action="/admin/edit-client" method="POST">
 <input type="hidden" name="pwd" value="{{pwd}}">
 <input type="hidden" name="username" value="{{c.username}}">
-<div class="mb-3"><label class="form-label text-secondary">Type :</label>
-<select name="client_type" class="fs"><option value="Hotspot" {%if c.client_type=='Hotspot'%}selected{%endif%}>📶 Hotspot</option><option value="PPPoE" {%if c.client_type=='PPPoE'%}selected{%endif%}>🌐 PPPoE</option></select></div>
-<div class="mb-3"><label class="form-label text-secondary">Date Debut :</label><input type="date" name="date_debut" class="fc" value="{{c.date_debut}}"></div>
-<div class="mb-3"><label class="form-label text-secondary">Date Fin :</label><input type="date" id="df" name="date_fin" class="fc" value="{{c.date_fin}}">
-<div><button type="button" class="bq" onclick="qd(30)">+30j</button> <button type="button" class="bq" onclick="qd(60)">+60j</button> <button type="button" class="bq" onclick="qd(90)">+90j</button></div></div>
-<div class="mb-3"><label class="form-label text-secondary">Quota Jour (Go) :</label><input type="number" name="limit_daily_gb" class="fc" value="{{c.limit_daily_gb}}"></div>
+<div class="mb-3"><label class="form-label text-secondary">Type de Connexion :</label>
+<select name="client_type" class="fs w-100"><option value="Hotspot" {%if c.client_type=='Hotspot'%}selected{%endif%}>📶 Hotspot (WiFi Zone)</option><option value="PPPoE" {%if c.client_type=='PPPoE'%}selected{%endif%}>🌐 PPPoE (Routeur / Foyer)</option></select></div>
+<div class="mb-3"><label class="form-label text-secondary">Date Début Abonnement :</label><input type="date" name="date_debut" class="fc w-100" value="{{c.date_debut}}"></div>
+<div class="mb-3"><label class="form-label text-secondary">Date Fin Abonnement :</label><input type="date" id="df" name="date_fin" class="fc w-100" value="{{c.date_fin}}">
+<div class="mt-2"><button type="button" class="bq" onclick="qd(30)">+30 Jours</button> <button type="button" class="bq" onclick="qd(60)">+60 Jours</button> <button type="button" class="bq" onclick="qd(90)">+90 Jours</button></div></div>
+<div class="mb-3"><label class="form-label text-secondary">Limite Quotidienne (Go / Jour) :</label><input type="number" name="limit_daily_gb" class="fc w-100" value="{{c.limit_daily_gb}}"></div>
 <div class="mb-4"><label class="form-label text-secondary">Statut :</label>
-<select name="status" class="fs"><option value="active" {%if c.status=='active'%}selected{%endif%}>🟢 Actif</option><option value="blocked" {%if c.status=='blocked'%}selected{%endif%}>🔴 Suspendu</option></select></div>
+<select name="status" class="fs w-100"><option value="active" {%if c.status=='active'%}selected{%endif%}>🟢 Actif</option><option value="blocked" {%if c.status=='blocked'%}selected{%endif%}>🔴 Suspendu</option></select></div>
 <div class="d-flex gap-2">
 <a href="/admin?pwd={{pwd}}" class="btn btn-secondary flex-fill">Annuler</a>
-<button type="submit" class="btn btn-success flex-fill fw-bold">💾 Enregistrer</button>
+<button type="submit" class="btn btn-save flex-fill">💾 Enregistrer</button>
 </div>
 </form>
 </div>
@@ -209,7 +222,7 @@ body{background:#0b0f19;color:#f1f5f9;font-family:system-ui,sans-serif;display:f
 """
 
 # ============================================================
-# PAGE CLIENT STATUT
+# PAGE DU CLIENT (ESPACE SOLDE ROUGE & NOIR CYBER)
 # ============================================================
 CLIENT_HTML = """
 <!DOCTYPE html>
@@ -217,44 +230,45 @@ CLIENT_HTML = """
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>MIKROTECK 301 - Solde</title>
+<title>MIKROTECK 301 - Mon Compte</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
 <style>
-body{font-family:system-ui,sans-serif;background:#070b14;color:white;text-align:center;padding:25px 15px;margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center}
-.box{background:#0f172a;width:100%;max-width:420px;padding:30px 20px;border-radius:20px;border:1px solid #1e293b;box-shadow:0 10px 30px rgba(0,0,0,0.6)}
-.val{font-size:32px;font-weight:800;color:#38bdf8;margin:6px 0}
-.val.danger{color:#ef4444}
-.vm{font-size:32px;font-weight:800;color:#4ade80;margin:6px 0}
-.bb{background:#1e293b;height:16px;border-radius:8px;overflow:hidden;margin:12px 0}
-.bf{background:linear-gradient(90deg,#38bdf8,#00ff88);height:100%}
-.bf.danger{background:linear-gradient(90deg,#f87171,#ef4444)}
-.bt{background:#1e293b;padding:6px 14px;border-radius:20px;border:1px solid #38bdf8;font-size:14px;display:inline-block;margin-bottom:10px}
-.ic{background:#131d33;padding:14px;border-radius:12px;border:1px solid #334155;margin:15px 0}
-.ab{background:rgba(239,68,68,0.15);border:1px solid #ef4444;color:#fca5a5;padding:12px;border-radius:12px;margin-bottom:15px;font-size:14px}
-.btn{display:flex;align-items:center;justify-content:center;gap:8px;padding:12px;border-radius:10px;text-decoration:none;font-weight:bold;margin-top:10px;font-size:15px;color:white}
+:root{--red:#ff003c;--card:#0e0e17}
+body{font-family:'Segoe UI',system-ui,sans-serif;background:radial-gradient(circle at center,#1e0309,#050508);color:white;text-align:center;padding:25px 15px;margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center}
+.box{background:var(--card);width:100%;max-width:420px;padding:30px 22px;border-radius:24px;border:1px solid rgba(255,0,60,0.3);box-shadow:0 20px 50px rgba(0,0,0,0.8);position:relative}
+.val{font-size:36px;font-weight:900;color:#fff;margin:6px 0}
+.val span{color:var(--red)}
+.vm{font-size:32px;font-weight:900;color:#00ff88;margin:6px 0}
+.bb{background:#181824;height:16px;border-radius:8px;overflow:hidden;margin:14px 0}
+.bf{background:linear-gradient(90deg,#ff003c,#ff4d6d);height:100%;transition:width .5s}
+.bf.danger{background:#ff003c;box-shadow:0 0 12px rgba(255,0,60,0.8)}
+.bt{background:rgba(255,0,60,0.1);padding:6px 16px;border-radius:20px;border:1px solid var(--red);font-size:13px;font-weight:700;color:var(--red);display:inline-block;margin-bottom:12px}
+.ic{background:#141420;padding:14px;border-radius:14px;border:1px solid #222;margin:15px 0}
+.ab{background:rgba(255,0,60,0.15);border:1px solid var(--red);color:#fca5a5;padding:12px;border-radius:12px;margin-bottom:15px;font-size:13px}
+.btn{display:flex;align-items:center;justify-content:center;gap:8px;padding:13px;border-radius:12px;text-decoration:none;font-weight:bold;margin-top:10px;font-size:14px;color:white;transition:.2s}
 .btg{background:#0088cc}.bwa{background:#25D366}
 </style>
 </head>
 <body>
 <div class="box">
-<div class="bt"><i class="fa-solid fa-signal text-info"></i> {{client.client_type}}</div>
-<h2 style="color:#facc15;margin:0 0 15px">👤 {{client.username}}</h2>
-{% if is_ex %}<div class="ab"><i class="fa-solid fa-triangle-exclamation"></i> <b>Quota Journalier Atteint !</b><br>Debit reduit (FUP). Renouvellement a 00h00.</div>{% endif %}
-<p style="margin:0;color:#94a3b8;font-size:14px">Aujourd'hui :</p>
-<div class="val {{'danger' if is_ex else ''}}">{{"%.2f"|format(dg)}} <small style="font-size:16px;color:#94a3b8">/ {{client.limit_daily_gb}} Go</small></div>
+<div class="bt"><i class="fa-solid fa-signal"></i> {{client.client_type}}</div>
+<h2 style="color:#fff;margin:0 0 15px;font-weight:900">👤 {{client.username}}</h2>
+{% if is_ex %}<div class="ab"><i class="fa-solid fa-triangle-exclamation"></i> <b>Limite quotidienne atteinte !</b><br>Débit FUP réduit. Réinitialisation à 00h00.</div>{% endif %}
+<p style="margin:0;color:#94a3b8;font-size:13px">Consommation Aujourd'hui :</p>
+<div class="val">{{"%.2f"|format(dg)}} <span>/ {{client.limit_daily_gb}} Go</span></div>
 <div class="bb"><div class="bf {{'danger' if is_ex else ''}}" style="width:{{dp}}%"></div></div>
-<p style="margin:15px 0 0;color:#94a3b8;font-size:14px">Total ce Mois :</p>
+<p style="margin:16px 0 0;color:#94a3b8;font-size:13px">Total Consommé ce Mois :</p>
 <div class="vm">{{"%.2f"|format(mg)}} <small style="font-size:16px">Go</small></div>
-<div class="ic">📅 Abonnement : <b>{{dl}}</b><br><small style="color:#94a3b8">Expire : {{client.date_fin or 'Non defini'}}</small></div>
-<a class="btn btg" href="https://t.me/{{bot}}?start={{client.username}}"><i class="fa-brands fa-telegram"></i> Telegram</a>
-<a class="btn bwa" href="https://wa.me/{{wa}}?text={{wm}}" target="_blank"><i class="fa-brands fa-whatsapp"></i> WhatsApp Admin</a>
+<div class="ic">📅 Validité Abonnement : <br><b style="font-size:16px">{{dl}}</b><br><small style="color:#64748b">Expire le : {{client.date_fin or 'Non défini'}}</small></div>
+<a class="btn btg" href="https://t.me/{{bot}}?start={{client.username}}"><i class="fa-brands fa-telegram"></i> Suivre sur Telegram</a>
+<a class="btn bwa" href="https://wa.me/{{wa}}?text={{wm}}" target="_blank"><i class="fa-brands fa-whatsapp"></i> Recharger via WhatsApp</a>
 </div>
 </body>
 </html>
 """
 
 # ============================================================
-# ROUTES
+# ROUTES FLASK
 # ============================================================
 @app.route("/admin")
 def admin():
@@ -266,7 +280,7 @@ def admin():
     cpp = sum(1 for c in clients if c.get("client_type") == "PPPoE")
     tt = sum(c['daily_bytes'] for c in clients) / 1073741824
     tm = sum(c['monthly_bytes'] for c in clients) / 1073741824
-    ec = sum(1 for c in clients if (c['daily_bytes']/1073741824) >= (c['limit_daily_gb'] or 30))
+    ec = sum(1 for c in clients if (c['daily_bytes']/1073741824) >= (c['limit_daily_gb'] or 10))
     return render_template_string(DASHBOARD_HTML, clients=clients, pwd=pwd, c_hs=chs, c_pp=cpp,
                                   t_today=tt, t_month=tm, exceeded_count=ec, cd=calc_days, bot=BOT_USERNAME)
 
@@ -274,7 +288,7 @@ def admin():
 def edit_page():
     pwd = request.args.get("pwd")
     if pwd != ADMIN_PASSWORD and pwd != "mon_mot_de_passe_secret":
-        return "Acces refuse", 403
+        return "Accès refusé", 403
     c = get_client(request.args.get("username"))
     if not c:
         return "Client introuvable", 404
@@ -284,9 +298,9 @@ def edit_page():
 def edit_client():
     pwd = request.form.get("pwd")
     if pwd != ADMIN_PASSWORD and pwd != "mon_mot_de_passe_secret":
-        return "Acces refuse", 403
+        return "Accès refusé", 403
     edit_client_dates(request.form.get("username"), request.form.get("date_debut"),
-                      request.form.get("date_fin"), int(request.form.get("limit_daily_gb") or 30),
+                      request.form.get("date_fin"), int(request.form.get("limit_daily_gb") or 10),
                       request.form.get("client_type") or "Hotspot", request.form.get("status") or "active")
     return redirect(f"/admin?pwd={pwd}")
 
@@ -294,7 +308,7 @@ def edit_client():
 def quick_renew():
     pwd = request.args.get("pwd")
     if pwd != ADMIN_PASSWORD and pwd != "mon_mot_de_passe_secret":
-        return "Acces refuse", 403
+        return "Accès refusé", 403
     add_days_to_client(request.args.get("username"), 30)
     return redirect(f"/admin?pwd={pwd}")
 
@@ -302,30 +316,30 @@ def quick_renew():
 def export_csv():
     pwd = request.args.get("pwd")
     if pwd != ADMIN_PASSWORD and pwd != "mon_mot_de_passe_secret":
-        return "Acces refuse", 403
+        return "Accès refusé", 403
     clients = get_all_clients()
     o = io.StringIO()
     w = csv.writer(o, delimiter=';')
-    w.writerow(["Type","Client","Jour Go","Mois Go","Debut","Fin","Validite","Statut","Synchro"])
+    w.writerow(["Type","Client","Jour Go","Mois Go","Debut","Fin","Validite","Statut","Derniere Synchro"])
     for c in clients:
         w.writerow([c['client_type'], c['username'], round(c['daily_bytes']/1073741824,2),
                     round(c['monthly_bytes']/1073741824,2), c['date_debut'], c['date_fin'],
                     calc_days(c['date_fin']), c['status'], c['last_update']])
     o.seek(0)
     return Response(o.getvalue(), mimetype="text/csv",
-                    headers={"Content-Disposition": f"attachment;filename=rapport_{datetime.now().strftime('%Y_%m_%d')}.csv"})
+                    headers={"Content-Disposition": f"attachment;filename=rapport_isp_{datetime.now().strftime('%Y_%m_%d')}.csv"})
 
 @app.route("/status/<username>")
 def status(username):
     c = get_client(username)
     if not c:
-        return "<h3>Client introuvable</h3>"
+        return "<h3>❌ Client introuvable.</h3>"
     dg = c["daily_bytes"]/1073741824
     mg = c["monthly_bytes"]/1073741824
-    lim = c["limit_daily_gb"] or 30
+    lim = c["limit_daily_gb"] or 10
     dp = min(100, (dg/lim)*100)
     ie = dg >= lim
-    wm = urllib.parse.quote(f"Bonjour, je souhaite recharger le compte : {username}")
+    wm = urllib.parse.quote(f"Bonjour, je souhaite recharger mon compte WiFi : {username}")
     return render_template_string(CLIENT_HTML, client=c, dg=dg, mg=mg, dp=dp, is_ex=ie,
                                   dl=calc_days(c["date_fin"]), bot=BOT_USERNAME, wa=WHATSAPP_PHONE, wm=wm)
 
@@ -340,7 +354,7 @@ def telegram_webhook():
         cid = cb["message"]["chat"]["id"]
         data = cb.get("data", "")
         if data == "tuto":
-            send_tg(cid, "📖 <b>TUTORIEL :</b>\n\n👉 Tapez votre identifiant WiFi ou PPPoE dans ce chat pour voir votre solde !\n\n💰 Tarif : 40 000 Ar / 30 jours\n📊 Quota : 30 Go / jour\n⏰ Horaires : 05h00 - 00h00")
+            send_tg(cid, "📖 <b>GUIDE CLIENT :</b>\n\n👉 Envoyez simplement votre identifiant dans ce chat pour voir votre consommation !\n\n💰 Tarif : 40 000 Ar / 30 jours\n📊 Quota : Configurable (Defaut 10 Go/j)\n⏰ Horaires : 05h00 - 00h00")
         elif data == "contact":
             send_tg(cid, f"📞 <b>SUPPORT :</b>\n\nWhatsApp : +261 38 28 171 00\nMvola : 038 28 171 00\nAdmin : Jean Eric")
         return jsonify({"status": "ok"})
@@ -354,10 +368,10 @@ def telegram_webhook():
             if len(parts) > 1:
                 reply_stats(cid, parts[1])
             else:
-                kb = {"inline_keyboard": [[{"text": "📖 Tutoriel", "callback_data": "tuto"}], [{"text": "📞 Contact Admin", "callback_data": "contact"}]]}
-                send_tg(cid, "👋 <b>Bienvenue sur MIKROTECK 301 !</b>\n\n👉 Envoyez votre identifiant pour voir votre solde.", kb)
+                kb = {"inline_keyboard": [[{"text": "📖 Guide & Aide", "callback_data": "tuto"}], [{"text": "📞 Support Admin", "callback_data": "contact"}]]}
+                send_tg(cid, "👋 <b>Bienvenue sur MIKROTECK 301 !</b>\n\n👉 Envoyez votre identifiant WiFi ou PPPoE pour voir votre solde en direct.", kb)
         elif text.startswith("/myid"):
-            send_tg(cid, f"🆔 Votre Chat ID : <code>{cid}</code>")
+            send_tg(cid, f"🆔 Votre Chat ID Telegram : <code>{cid}</code>")
         else:
             reply_stats(cid, text)
     return jsonify({"status": "ok"})
@@ -367,9 +381,9 @@ def reply_stats(cid, username):
     if c:
         dg = round(c['daily_bytes']/1073741824, 2)
         mg = round(c['monthly_bytes']/1073741824, 2)
-        icon = "PPPoE" if c.get('client_type') == 'PPPoE' else "Hotspot"
-        st = "🔴 FUP (Debit reduit)" if dg >= c['limit_daily_gb'] else "🟢 En ligne"
-        send_tg(cid, f"📊 <b>SOLDE : {c['username']}</b> ({icon})\n━━━━━━━━━━━━━━━━━━━━\n📅 Aujourd'hui : {dg} / {c['limit_daily_gb']} Go\n📆 Mois : {mg} Go\n⏳ Abonnement : {calc_days(c['date_fin'])}\n🏁 Expire : {c['date_fin'] or 'Non defini'}\n━━━━━━━━━━━━━━━━━━━━\nStatut : {st}")
+        icon = "🌐 PPPoE" if c.get('client_type') == 'PPPoE' else "📶 Hotspot"
+        st = "🔴 FUP (Débit réduit)" if dg >= c['limit_daily_gb'] else "🟢 En ligne"
+        send_tg(cid, f"📊 <b>SOLDE : {c['username']}</b> ({icon})\n━━━━━━━━━━━━━━━━━━━━\n📅 Aujourd'hui : {dg} / {c['limit_daily_gb']} Go\n📆 Total Mois : {mg} Go\n⏳ Validité : {calc_days(c['date_fin'])}\n🏁 Date Fin : {c['date_fin'] or 'Non défini'}\n━━━━━━━━━━━━━━━━━━━━\nStatut : {st}")
     else:
         send_tg(cid, f"❌ Compte '{username}' introuvable.")
 
@@ -401,7 +415,7 @@ def api_reset():
     return jsonify({"status": "reset done"})
 
 # ============================================================
-# API CHAT CLIENT / ACHETEUR (depuis le portail MikroTik)
+# API CHAT PORTAIL (ACHETEUR & CLIENT)
 # ============================================================
 @app.route("/api/chat", methods=["POST"])
 def client_chat():
@@ -419,7 +433,7 @@ def client_chat():
         label = "ACHETEUR (Page Login)"
     else:
         icon = "💬"
-        label = "CLIENT CONNECTE"
+        label = "CLIENT CONNECTÉ"
     alert = (f"{icon} <b>{label}</b>\n"
              f"━━━━━━━━━━━━━━━━━━━━\n"
              f"👤 <b>Nom :</b> <code>{username}</code>\n"
@@ -427,14 +441,14 @@ def client_chat():
              f"━━━━━━━━━━━━━━━━━━━━\n"
              f"📩 <b>Message :</b>\n{message}\n"
              f"━━━━━━━━━━━━━━━━━━━━\n"
-             f"💡 <i>Repondez via Telegram ou WhatsApp 038 28 171 00</i>")
+             f"💡 <i>Répondez directement sur Telegram ou WhatsApp (+261 38 28 171 00)</i>")
     if ADMIN_CHAT_ID:
         send_tg(ADMIN_CHAT_ID, alert)
     return jsonify({"status": "ok"})
 
 @app.route("/")
 def index():
-    return "🔥 MIKROTECK 301 - ISP Manager Actif"
+    return "🔥 MIKROTECK 301 Control Server Actif"
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
